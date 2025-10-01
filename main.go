@@ -40,10 +40,21 @@ type MidiHeader struct {
 	Division       uint16
 }
 
+type MidiTrack struct {
+	ChunkType [4]byte
+	Length    uint32
+}
+
 func (h MIDIHeader) String() string {
 	isTicksPerQuarterNote := h.Division&(1<<15) == 0
-	return fmt.Sprintf("Chunk Type: %s\nLength: %d\nFormat: %s\nNumber of tracks: %d\nDivision: %d Ticker Per QN: %t\n",
-		string(h.ChunkType[:]), h.Length, h.getFormat(), h.NumTracks, h.Division, isTicksPerQuarterNote)
+	var divisionType string
+	if isTicksPerQuarterNote {
+		divisionType = "Ticks Per Quarter Note"
+	} else {
+		divisionType = "SMPTE + MIDI Code"
+	}
+	return fmt.Sprintf("Chunk Type: %s\nLength: %d\nFormat: %s\nNumber of tracks: %d\n%s: %d\n",
+		string(h.ChunkType[:]), h.Length, h.getFormat(), h.NumTracks, divisionType, h.Division)
 }
 
 func (h MIDIHeader) getFormat() FormatType {
@@ -118,5 +129,23 @@ func main() {
 		log.Fatal("Bad MIDI header")
 	}
 	fmt.Printf("Header %+v", midiHeader)
+	numTracksFound := 0
+	for {
+		var trackChunk MidiTrack
+		err = binary.Read(file, binary.BigEndian, &trackChunk)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			log.Fatal("Error reading track")
+		}
+		if string(trackChunk.ChunkType[:]) != "MTrk" {
+			log.Fatal("Not a track")
+		}
+		numTracksFound++
+		fmt.Printf("Encountered track with length %d\n", trackChunk.Length)
+		file.Seek(int64(trackChunk.Length), io.SeekCurrent)
+	}
+	fmt.Printf("Found %d tracks", numTracksFound)
 
 }
