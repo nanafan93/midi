@@ -12,6 +12,14 @@ import (
 	"os"
 )
 
+func printSeparated(s string) {
+	fmt.Println()
+	fmt.Println(s)
+	fmt.Println(separator)
+}
+
+const separator = "=========="
+
 func printEntireFile(file *os.File) {
 	buf := make([]byte, 512)
 	totalSize := 0
@@ -38,19 +46,25 @@ func printEntireFile(file *os.File) {
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Println("Usage: midi <midi-file>")
+	printBytes := false
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: midi <midi-file> [--print-bytes]")
 		os.Exit(1)
 	}
 	fileName := os.Args[1]
+	if len(os.Args) > 2 && os.Args[2] == "--print-bytes" {
+		printBytes = true
+	}
 	file, err := os.Open(fileName)
 	r := bufio.NewReader(file)
 	if err != nil {
 		log.Fatal("Error reading file: ", err)
 	}
-	printEntireFile(file)
+	if printBytes {
+		printEntireFile(file)
+		file.Seek(0, io.SeekStart)
+	}
 	defer file.Close()
-	file.Seek(0, io.SeekStart)
 	var midiHeader midi.Header
 	err = binary.Read(r, binary.BigEndian, &midiHeader)
 	if err != nil {
@@ -59,7 +73,7 @@ func main() {
 	if string(midiHeader.ChunkType[:]) != "MThd" {
 		log.Fatal("Bad MIDI header")
 	}
-	fmt.Printf("Header %+v", midiHeader)
+	printSeparated(fmt.Sprintf("Header %+v", midiHeader))
 	numTracksFound := 0
 	//trackMap := make(map[int][]byte)
 	for {
@@ -77,17 +91,15 @@ func main() {
 		}
 		trackData := make([]byte, trackChunk.Length)
 		numTracksFound++
-		fmt.Printf("Encountered track with length %d\n", trackChunk.Length)
+		printSeparated(fmt.Sprintf("Track %d", numTracksFound))
 		_, err = io.ReadFull(r, trackData)
 		if err != nil {
 			log.Fatal("Error reading track data")
 		}
 		printTrackEvents(trackData)
-		//trackMap[numTracksFound] = trackData
 
 	}
 	fmt.Printf("Found %d tracks", numTracksFound)
-	//fmt.Printf("Track map %v", trackMap)
 
 }
 
