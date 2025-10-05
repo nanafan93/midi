@@ -21,28 +21,18 @@ func printSeparated(s string) {
 const separator = "=========="
 
 func printEntireFile(file *os.File) {
-	buf := make([]byte, 512)
-	totalSize := 0
-	printedBytes := 0
-	for {
-		n, err := file.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				break
-			} else {
-				log.Fatal("something went wrong reading the file")
-			}
-		}
-		totalSize += n
-		for _, fileByte := range buf[:n] {
-			fmt.Printf("%02X ", fileByte)
-			printedBytes++
-			if (printedBytes+1)%10 == 0 {
-				fmt.Println()
-			}
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		log.Fatal("something went wrong reading the file")
+	}
+	for i, b := range fileBytes {
+		fmt.Printf("%02X ", b)
+		if (i+1)%10 == 0 {
+			fmt.Println()
 		}
 	}
-	fmt.Printf("\nMIDI size: %d bytes\n", totalSize)
+	fmt.Printf("\nMIDI size: %d bytes\n", len(fileBytes))
+	file.Seek(0, io.SeekStart)
 }
 
 func main() {
@@ -58,24 +48,23 @@ func main() {
 	file, err := os.Open(fileName)
 	r := bufio.NewReader(file)
 	if err != nil {
-		log.Fatal("Error reading file: ", err)
+		log.Fatal("Error opening file: ", err)
 	}
 	if printBytes {
 		printEntireFile(file)
-		file.Seek(0, io.SeekStart)
 	}
 	defer file.Close()
+
 	var midiHeader midi.Header
 	err = binary.Read(r, binary.BigEndian, &midiHeader)
 	if err != nil {
-		log.Fatal("Cant use binary.Read")
+		log.Fatal("Error reading MIDI header: ", err)
 	}
 	if string(midiHeader.ChunkType[:]) != "MThd" {
 		log.Fatal("Bad MIDI header")
 	}
 	printSeparated(fmt.Sprintf("Header %+v", midiHeader))
 	numTracksFound := 0
-	//trackMap := make(map[int][]byte)
 	for {
 		var trackChunk midi.Track
 
@@ -97,10 +86,7 @@ func main() {
 			log.Fatal("Error reading track data")
 		}
 		printTrackEvents(trackData)
-
 	}
-	fmt.Printf("Found %d tracks", numTracksFound)
-
 }
 
 func printMetaEvent(r *bytes.Reader) {
@@ -131,7 +117,6 @@ func printTrackEvents(trackData []byte) {
 	lastStatus := byte(0)
 
 	for reader.Len() > 0 {
-		// Always start by reading delta-time
 		deltaTime, err := vlq.ReadVLQ(reader)
 		if err != nil {
 			log.Fatal("Error reading event")

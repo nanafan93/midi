@@ -15,3 +15,4 @@ go run main.go assets/mary_had_a_little_lamb.mid
 - Playing a track ?!??
 - Add tests lel
 - Implement a state machine for parsing
+- Add support for system events
